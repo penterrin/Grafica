@@ -1,12 +1,16 @@
+// Este código es de dominio público
+// penterrin@gmail.com
+
 #pragma once
 
 #include "Node.hpp"
+#include "Light.hpp"
 #include <vector>
 #include <string>
 #include <glad/gl.h>
 #include <glm.hpp>
 
-// Incluimos Assimp para cargar modelos
+
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
@@ -16,7 +20,7 @@ namespace udit
     class Mesh : public Node
     {
     private:
-        // Estructura interna para los vértices
+        
         struct Vertex {
             glm::vec3 Position;
             glm::vec3 Normal;
@@ -25,11 +29,11 @@ namespace udit
 
 
 
-        // Datos de la malla
+        
         std::vector<Vertex> vertices;
         std::vector<unsigned int> indices;
 
-        // OpenGL IDs (Buffers)
+        
         GLuint VAO, VBO, EBO;
         GLuint shader_program_id;
         GLuint texture_id;        
@@ -42,6 +46,8 @@ namespace udit
         void process_node(aiNode* node, const aiScene* scene);
         void process_mesh(aiMesh* mesh, const aiScene* scene);
 
+        Light* light_ptr;
+
     public:
         
         Mesh(const std::string& path);
@@ -50,7 +56,7 @@ namespace udit
        
         virtual void render(const Camera& camera) override;
 
-  
+        void set_light(Light* l) { light_ptr = l; }
      
     };
 }

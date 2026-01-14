@@ -1,6 +1,5 @@
-
 // Este código es de dominio público
-// angel.rodriguez@udit.es
+// penterrin@gmail.com
 
 #ifndef SCENE_HEADER
 #define SCENE_HEADER
@@ -9,6 +8,7 @@
     #include "Skybox.hpp"
     #include "Mesh.hpp"
     #include "Terrain.hpp"
+    #include "Light.hpp"
     #include <SDL3/SDL.h>
 
     namespace udit
@@ -24,6 +24,8 @@
             Mesh* cat_opaque;
             Mesh* cat_ghost;
             Terrain* terrain;
+
+            Light* main_light;
 
             int    width;
             int    height;

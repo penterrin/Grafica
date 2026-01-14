@@ -1,3 +1,6 @@
+// Este código es de dominio público
+// penterrin@gmail.com
+
 #include "Mesh.hpp"
 #include "Camera.hpp"
 #include <SOIL2.h>
@@ -7,9 +10,9 @@
 
 namespace udit
 {
-    Mesh::Mesh(const std::string& path) : opacity(1.0f)
+    Mesh::Mesh(const std::string& path) : opacity(1.0f), light_ptr(nullptr)
     {
-       
+        // Uso de Assimp para carga y normalización del modelo
         Assimp::Importer importer;
         
         const aiScene* scene = importer.ReadFile(path, aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_GenNormals);
@@ -24,19 +27,20 @@ namespace udit
         std::cout << "EXITO: Modelo encontrado: " << path << std::endl;
 
 
-        // Procesar nodos recursivamente
+        
         process_node(scene->mRootNode, scene);
 
         std::cout << "INFO: Se han cargado " << vertices.size() << " vertices." << std::endl;
         if (vertices.size() == 0) std::cout << "ALERTA: El modelo esta vacio!" << std::endl;
         std::cout << "------------------------------------------------" << std::endl;
-        // ----------------------------------------------
+        
 
-        // 2. Preparar OpenGL
+       
         setup_mesh();
 
+        // Carga manual de textura mediante librería SOIL
         texture_id = SOIL_load_OGL_texture(
-            "assets/cat.png",  // Asegúrate de que se llame así
+            "assets/cat.png",  
             SOIL_LOAD_AUTO,
             SOIL_CREATE_NEW_ID,
             SOIL_FLAG_MIPMAPS /*| SOIL_FLAG_INVERT_Y*/
@@ -58,13 +62,13 @@ namespace udit
 
     void Mesh::process_node(aiNode* node, const aiScene* scene)
     {
-        // Procesar todas las mallas de este nodo
+        
         for (unsigned int i = 0; i < node->mNumMeshes; i++)
         {
             aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
             process_mesh(mesh, scene);
         }
-        // Repetir para los hijos
+        
         for (unsigned int i = 0; i < node->mNumChildren; i++)
         {
             process_node(node->mChildren[i], scene);
@@ -73,15 +77,17 @@ namespace udit
 
     void Mesh::process_mesh(aiMesh* mesh, const aiScene* scene)
     {
+        // Recorrido de todos los vértices del modelo importado
         for (unsigned int i = 0; i < mesh->mNumVertices; i++)
         {
             Vertex vertex;
-            // Posiciones
+            
+            // Copia de posiciones
             vertex.Position.x = mesh->mVertices[i].x;
             vertex.Position.y = mesh->mVertices[i].y;
             vertex.Position.z = mesh->mVertices[i].z;
 
-            // Normales (si existen)
+            // Copia de normales si existen
             if (mesh->HasNormals())
             {
                 vertex.Normal.x = mesh->mNormals[i].x;
@@ -90,6 +96,7 @@ namespace udit
             }
             else vertex.Normal = glm::vec3(0.0f, 1.0f, 0.0f);
 
+            // Copia de coordenadas de textura
             if (mesh->mTextureCoords[0])
             {
                 vertex.TexCoords.x = mesh->mTextureCoords[0][i].x;
@@ -103,7 +110,7 @@ namespace udit
             vertices.push_back(vertex);
         }
 
-        // Indices
+        // Copia de índices para formación de triángulos
         for (unsigned int i = 0; i < mesh->mNumFaces; i++)
         {
             aiFace face = mesh->mFaces[i];
@@ -120,19 +127,19 @@ namespace udit
 
         glBindVertexArray(VAO);
 
-        // Vértices
+        
         glBindBuffer(GL_ARRAY_BUFFER, VBO);
         glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), &vertices[0], GL_STATIC_DRAW);
 
-        // Índices
+        
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
 
-        // Atributo 0: Posición
+        
         glEnableVertexAttribArray(0);
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
 
-        // Atributo 1: Normal
+        
         glEnableVertexAttribArray(1);
         glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, Normal));
 
@@ -150,10 +157,28 @@ namespace udit
         glUniformMatrix4fv(view_loc, 1, GL_FALSE, glm::value_ptr(camera.get_transform_matrix_inverse()));
         glUniformMatrix4fv(model_loc, 1, GL_FALSE, glm::value_ptr(get_global_matrix()));
 
-        // --- NUEVO: Pasamos la posición de la cámara para calcular los brillos ---
+        // Envío de posición de cámara para cálculo especular
         glm::vec4 camPos = camera.get_location();
         glUniform3f(glGetUniformLocation(shader_program_id, "viewPos"), camPos.x, camPos.y, camPos.z);
+
+        // Configuración de opacidad
         glUniform1f(glGetUniformLocation(shader_program_id, "alpha"), opacity);
+
+        // Envío de datos de luz si existe asignación; si no, valores por defecto
+        if (light_ptr)
+        {
+            glm::vec3 l_pos = light_ptr->get_position();
+            glm::vec3 l_col = light_ptr->get_color();
+
+            glUniform3f(glGetUniformLocation(shader_program_id, "lightPos"), l_pos.x, l_pos.y, l_pos.z);
+            glUniform3f(glGetUniformLocation(shader_program_id, "lightColor"), l_col.x, l_col.y, l_col.z);
+        }
+        else
+        {
+            
+            glUniform3f(glGetUniformLocation(shader_program_id, "lightPos"), 5.0f, 50.0f, 5.0f);
+            glUniform3f(glGetUniformLocation(shader_program_id, "lightColor"), 1.0f, 1.0f, 1.0f);
+        }
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture_id);
@@ -167,7 +192,7 @@ namespace udit
 
     void Mesh::compile_shaders()
     {
-        // VERTEX SHADER: Ahora recibe y pasa las coordenadas de textura (aTexCoords)
+        
         const char* vShaderCode = R"(
         #version 330 core
         layout (location = 0) in vec3 aPos;
@@ -191,7 +216,7 @@ namespace udit
         }
     )";
 
-        // FRAGMENT SHADER: Usa la textura en vez del color gris
+        
         const char* fShaderCode = R"(
         #version 330 core
         out vec4 FragColor;
@@ -203,15 +228,16 @@ namespace udit
         uniform vec3 viewPos;
         uniform sampler2D texture1; // <--- La imagen del gato
         uniform float alpha;
+        
+        uniform vec3 lightPos;
+        uniform vec3 lightColor;
 
         void main()
         {
             // Leemos el color de la textura en este punto
             vec3 objectColor = texture(texture1, TexCoords).rgb;
 
-            // --- ILUMINACIÓN PHONG (Igual que antes pero usando el color de la textura) ---
-            vec3 lightPos = vec3(5.0, 50.0, 5.0); 
-            vec3 lightColor = vec3(1.0, 1.0, 0.9);
+            
 
             // Ambiente
             float ambientStrength = 0.5;
@@ -236,7 +262,7 @@ namespace udit
         }
     )";
 
-        // Compilación estándar (esto no cambia)
+        
         GLuint v = glCreateShader(GL_VERTEX_SHADER); glShaderSource(v, 1, &vShaderCode, NULL); glCompileShader(v);
         GLuint f = glCreateShader(GL_FRAGMENT_SHADER); glShaderSource(f, 1, &fShaderCode, NULL); glCompileShader(f);
         shader_program_id = glCreateProgram();
@@ -247,6 +273,6 @@ namespace udit
         view_loc = glGetUniformLocation(shader_program_id, "view");
         proj_loc = glGetUniformLocation(shader_program_id, "projection");
         viewPos_loc = glGetUniformLocation(shader_program_id, "viewPos");
-        // No hace falta buscar la location de la textura porque por defecto usa la 0
+        
     }
 }

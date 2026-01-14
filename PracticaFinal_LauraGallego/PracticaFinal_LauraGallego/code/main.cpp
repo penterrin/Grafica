@@ -1,10 +1,10 @@
 // Este código es de dominio público
-// angel.rodriguez@udit.es
+// penterrin@gmail.com
 
 #include "Scene.hpp"
 #include <Window.hpp>
 #include <SDL3/SDL_main.h>
-#include <SDL3/SDL.h> // Añadido para asegurar que funcionen todas las herramientas de SDL
+#include <SDL3/SDL.h> 
 
 using udit::Scene;
 using udit::Window;
@@ -14,7 +14,7 @@ int main(int, char* [])
     constexpr unsigned viewport_width = 1024;
     constexpr unsigned viewport_height = 576;
 
-    // He cambiado el título para que quede más profesional
+    
     Window window("Practica Final - Motor Grafico", viewport_width, viewport_height, { 3, 3 });
     Scene  scene(viewport_width, viewport_height);
 
@@ -23,17 +23,17 @@ int main(int, char* [])
     float mouse_y = 0;
     bool  button_down = false;
 
-    // --- NUEVO 1: Variable para calcular el tiempo entre fotogramas (Delta Time) ---
+    
     Uint64 last_time = SDL_GetTicks();
 
     do
     {
-        // --- NUEVO 2: Calcular cuánto tiempo ha pasado desde el último frame ---
+        // Calculo del delta_time para que el movimiento sea independiente de los FPS
         Uint64 current_time = SDL_GetTicks();
-        float delta_time = (current_time - last_time) / 1000.0f; // Convertimos milisegundos a segundos
+        float delta_time = (current_time - last_time) / 1000.0f; 
         last_time = current_time;
 
-        // Se procesan los eventos acumulados:
+        // Gestión de (Teclado/Ratón)
         SDL_Event event;
 
         while (SDL_PollEvent(&event))
@@ -86,18 +86,16 @@ int main(int, char* [])
             }
         }
 
-        // --- NUEVO 4: Leer el teclado para mover la cámara (WASD) ---
-        // SDL3 devuelve un array de booleanos con el estado de todas las teclas
+        // Estado del teclado para movimientos continuos (WASD)
         const bool* keys = SDL_GetKeyboardState(NULL);
 
-        // Se actualiza la escena:
-        // ¡OJO! Aquí es donde fallará hasta que cambiemos Scene.hpp
+        // Actualiza la lógica de la escena (movimiento, animaciones, físicas...)
         scene.update(delta_time, keys);
 
-        // Se redibuja la escena:
+        //Renderiza la escena
         scene.render();
 
-        // Se actualiza el contenido de la ventana:
+        
         window.swap_buffers();
     } while (not exit);
 

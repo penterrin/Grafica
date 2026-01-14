@@ -1,13 +1,13 @@
 
 // Este código es de dominio público
-// angel.rodriguez@udit.es
+// penterrin@gmail.com
 
 #ifndef CAMERA_HEADER
 #define CAMERA_HEADER
 
-    #include <glm.hpp>                          // vec3, vec4, ivec4, mat4
-    #include <gtc/matrix_transform.hpp>         // translate, rotate, scale, perspective
-    #include <gtc/type_ptr.hpp>                 // value_ptr
+    #include <glm.hpp>                          
+    #include <gtc/matrix_transform.hpp>         
+    #include <gtc/type_ptr.hpp>                 
 
     namespace udit
     {
@@ -59,6 +59,7 @@
 
         public:
 
+            // Configuración de los parámetros (campo de visión y planos de corte)
             void set_fov      (float new_fov   ) { fov    = new_fov;    calculate_projection_matrix (); }
             void set_near_z   (float new_near_z) { near_z = new_near_z; calculate_projection_matrix (); }
             void set_far_z    (float new_far_z ) { far_z  = new_far_z;  calculate_projection_matrix (); }
@@ -67,6 +68,7 @@
             void set_location (float x, float y, float z) { location[0] = x; location[1] = y; location[2] = z; }
             void set_target   (float x, float y, float z) { target  [0] = x; target  [1] = y; target  [2] = z; }
 
+            // Reinicio de la cámara a una posición y orientación por defecto
             void reset (float new_fov, float new_near_z, float new_far_z, float new_ratio)
             {
                 set_fov      (new_fov   );
@@ -80,12 +82,14 @@
 
         public:
 
+            // Desplazamiento de la posición y el objetivo de la cámara
             void move (const glm::vec3 & translation)
             {
                 location += glm::vec4 (translation, 1.f);
                 target   += glm::vec4 (translation, 1.f);
             }
 
+            // Rotación de la cámara alrededor de su posición actual
             void rotate (const glm::mat4 & rotation)
             {
                 target = location + rotation * (target - location);
@@ -93,11 +97,14 @@
 
         public:
 
+            // Obtención de la matriz de proyección (Perspectiva)
             const glm::mat4 & get_projection_matrix () const
             {
                 return projection_matrix;
             }
 
+            // Cálculo de la matriz de vista (View Matrix) usando LookAt
+            // Invierte la transformación para simular que el mundo se mueve alrededor de la cámara
             glm::mat4 get_transform_matrix_inverse () const
             {
                 return glm::lookAt
@@ -110,6 +117,7 @@
 
         private:
 
+            // Actualización de la matriz de proyección cuando cambian los parámetros
             void calculate_projection_matrix ()
             {
                 projection_matrix = glm::perspective (glm::radians (fov), ratio, near_z, far_z);

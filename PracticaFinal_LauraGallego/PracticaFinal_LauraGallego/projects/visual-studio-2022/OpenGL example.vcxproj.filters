@@ -71,5 +71,8 @@
     <ClInclude Include="..\..\code\Terrain.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\code\Light.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

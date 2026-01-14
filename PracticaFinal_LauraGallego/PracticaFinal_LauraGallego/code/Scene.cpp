@@ -1,3 +1,6 @@
+// Este código es de dominio público
+// penterrin@gmail.com
+
 #include "Scene.hpp"
 #include <iostream>
 #include <vector>
@@ -7,32 +10,42 @@ namespace udit
     Scene::Scene(int width, int height)
         : camera(0.1f, 1000.f, float(width) / height),
         skybox("assets/skybox/sky-cube-map-"),
-        terrain(nullptr),/* mi_modelo(nullptr),*/ cat_opaque(nullptr), cat_ghost(nullptr),
+        terrain(nullptr), cat_opaque(nullptr), cat_ghost(nullptr),
         width(width), height(height),
         angle_delta_x(0), angle_delta_y(0), pointer_pressed(false), current_effect(0)
     {
-        // 1. Configurar OpenGL
+        
         glEnable(GL_DEPTH_TEST);
 
-        // 2. Crear objetos
+        
+        // Carga del terreno utilizando el mapa de alturas
         terrain = new Terrain(50.0f, 50.0f, 256, 256, "assets/height-map.png");
         terrain->set_position({ 0.0f, -2.0f, 0.0f });
 
-        /*mi_modelo = new Mesh("assets/cat.obj");
-        mi_modelo->set_position({ 0.0f, 2.0f, 0.0f });*/
+        // Inicialización de la luz principal de la escena
+        main_light = new Light();
+        main_light->set_position({ 10.0f, 50.0f, 10.0f }); // Arriba y a un lado
+        main_light->set_color({ 1.0f, 0.9f, 0.8f });
 
+        // Gato 1: Configuración del modelo opaco
         cat_opaque = new Mesh("assets/cat.obj");
-        cat_opaque->set_position({ -2.0f, 8.0f, 0.0f }); // A la izquierda
+        cat_opaque->set_position({ -2.0f, 8.0f, 0.0f }); 
         cat_opaque->set_opacity(1.0f);
+        cat_opaque->set_light(main_light);
 
+        // Gato 2: Configuración del modelo transparente (Fantasma)
         cat_ghost = new Mesh("assets/cat.obj");
-        cat_ghost->set_position({ 2.0f, 8.0f, 0.0f }); // A la derecha
-        cat_ghost->set_opacity(0.4f); // 40% de opacidad (FANTASMA)
+        cat_ghost->set_position({ 2.0f, 8.0f, 0.0f }); 
+        cat_ghost->set_opacity(0.4f);
+        cat_ghost->set_light(main_light);
 
+        // configuración cámara
         camera.set_location(0.0f, 10.0f, 15.0f);
         camera.set_target(0.0f, 0.0f, 0.0f);
 
-        // 3. INICIAR POST-PROCESADO
+
+
+        // Preparación del Framebuffer para efectos de post-proceso 
         init_screen_quad();
         compile_screen_shader();
         init_framebuffer();
@@ -42,10 +55,12 @@ namespace udit
     {
         if (cat_opaque) delete cat_opaque;
         if (cat_ghost)  delete cat_ghost;
-       /* if (mi_modelo) delete mi_modelo;*/
+       
         if (terrain) delete terrain;
 
-        // Limpiar Framebuffer
+        if (main_light) delete main_light;
+
+        
         glDeleteFramebuffers(1, &framebuffer_id);
         glDeleteTextures(1, &texture_colorbuffer_id);
         glDeleteRenderbuffers(1, &rbo_id);
@@ -53,96 +68,103 @@ namespace udit
 
     void Scene::update(float delta_time, const bool* keys)
     {
-        // Movimiento simple WASD
+        // Control de movimiento de cámara libre (WASD)
+
         float speed = 5.0f * delta_time;
         if (keys[SDL_SCANCODE_LSHIFT]) speed *= 2.0f;
 
+        // cálculo de vectores
         glm::vec3 front = glm::normalize(glm::vec3(camera.get_target() - camera.get_location()));
         glm::vec3 right = glm::normalize(glm::cross(front, glm::vec3(0, 1, 0)));
-
+        
+        // if keys W, A, S, D
         if (keys[SDL_SCANCODE_W]) camera.move(front * speed);
         if (keys[SDL_SCANCODE_S]) camera.move(-front * speed);
         if (keys[SDL_SCANCODE_A]) camera.move(-right * speed);
         if (keys[SDL_SCANCODE_D]) camera.move(right * speed);
 
-        // Inercia ratón
+        // Rotación de cámara mediante ratón
         if (angle_delta_x != 0 || angle_delta_y != 0) {
             camera.rotate(glm::rotate(glm::mat4(1.f), angle_delta_x * 0.05f, glm::vec3(0, 1, 0)));
             camera.rotate(glm::rotate(glm::mat4(1.f), angle_delta_y * 0.05f, right));
             angle_delta_x *= 0.9f; angle_delta_y *= 0.9f;
         }
 
+        // Animación: Rotación continua del modelo opaco
         if (cat_opaque) {
             glm::vec3 rot = cat_opaque->get_rotation();
-            rot.y += 50.0f * delta_time; // Gira 50 grados por segundo
+            rot.y += 50.0f * delta_time; 
             cat_opaque->set_rotation(rot);
-            cat_opaque->update(); // IMPORTANTE: Recalcular matriz
+            cat_opaque->update(); // Recálculo de matriz local
         }
 
+        // Animación: Levitación y giro del gato fantasma
         if (cat_ghost) {
             glm::vec3 rot = cat_ghost->get_rotation();
-            rot.y -= 50.0f * delta_time; // Gira al revés
+            rot.y -= 50.0f * delta_time; 
             cat_ghost->set_rotation(rot);
             float time = SDL_GetTicks() / 1000.0f;
-            float height = 8.0f + sin(time * 2.0f) * 0.5f; // Sube y baja 0.5 metros
+            float height = 8.0f + sin(time * 2.0f) * 0.5f; // Oscilación vertical (Seno)
             cat_ghost->set_position({ 2.0f, height, 0.0f });
-            cat_ghost->update(); // IMPORTANTE: Recalcular matriz
+            cat_ghost->update(); 
         }
 
-        /*if (mi_modelo) mi_modelo->update();*/
+        
         if (terrain) terrain->update();
     }
 
     void Scene::render()
     {
-        // --- PASO 1: Renderizar en el FRAMEBUFFER (Oculto) ---
+        //Renderizado de la escena en el Framebuffer (Textura interna)
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_id);
         glEnable(GL_DEPTH_TEST);
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // Dibujar escena normal
+        // Dibujado de objetos sólidos
         skybox.render(camera);
         if (terrain) terrain->render(camera);
-       /* if (mi_modelo) mi_modelo->render(camera);*/
+      
         if (cat_opaque) cat_opaque->render(camera);
 
+        // Dibujado de objetos transparentes (Blending)
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-        // Desactivamos la escritura en profundidad para que el fantasma no oculte cosas detrás de él incorrectamente
+        // Desactivación de escritura en Z - Buffer para correcta visualización traslúcida
         glDepthMask(GL_FALSE);
 
         if (cat_ghost) cat_ghost->render(camera);
 
-        // Restauramos el estado normal de OpenGL
+        // Restauración del estado normal de OpenGL
         glDepthMask(GL_TRUE);
         glDisable(GL_BLEND);
 
-        // --- PASO 2: Renderizar en la PANTALLA (Post-Procesado) ---
-        glBindFramebuffer(GL_FRAMEBUFFER, 0); // Volver a la pantalla real
-        glDisable(GL_DEPTH_TEST); // No necesitamos profundidad para una imagen plana
+        // Post-Proceso (Renderizado del Framebuffer en pantalla)
+        glBindFramebuffer(GL_FRAMEBUFFER, 0); // Retorno al buffer de pantalla
+        glDisable(GL_DEPTH_TEST); 
         glClear(GL_COLOR_BUFFER_BIT);
 
         glUseProgram(screen_shader_id);
 
+        // Envío del modo de efecto actual al shader
         glUniform1i(glGetUniformLocation(screen_shader_id, "mode"), current_effect);
 
         glBindVertexArray(screen_quad_vao);
 
-        // Pasamos la textura que acabamos de pintar
+       
         glBindTexture(GL_TEXTURE_2D, texture_colorbuffer_id);
 
         glDrawArrays(GL_TRIANGLES, 0, 6);
     }
 
-    // --- FUNCIONES DE AYUDA PARA POST-PROCESADO ---
+    
 
     void Scene::init_framebuffer() {
         glGenFramebuffers(1, &framebuffer_id);
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_id);
 
-        // Textura de color
+       
         glGenTextures(1, &texture_colorbuffer_id);
         glBindTexture(GL_TEXTURE_2D, texture_colorbuffer_id);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
@@ -150,7 +172,7 @@ namespace udit
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture_colorbuffer_id, 0);
 
-        // Render Buffer (Profundidad)
+        
         glGenRenderbuffers(1, &rbo_id);
         glBindRenderbuffer(GL_RENDERBUFFER, rbo_id);
         glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
@@ -164,7 +186,7 @@ namespace udit
 
     void Scene::init_screen_quad() {
         float quadVertices[] = {
-            // Posiciones   // UVs
+            
             -1.0f,  1.0f,  0.0f, 1.0f,
             -1.0f, -1.0f,  0.0f, 0.0f,
              1.0f, -1.0f,  1.0f, 0.0f,
@@ -221,7 +243,7 @@ namespace udit
                 {
                     float gray = dot(col, vec3(0.299, 0.587, 0.114));
                     vec3 green = vec3(0.0, gray, 0.0); 
-                    // Truco para aumentar el contraste
+                    
                     FragColor = vec4(green * 1.5, 1.0); 
                 }
             }
@@ -239,18 +261,18 @@ namespace udit
         width = w; height = h;
         camera.set_ratio(float(width) / height);
         glViewport(0, 0, width, height);
-        // Regenerar textura framebuffer al cambiar tamaño
+        
         init_framebuffer();
     }
     void Scene::on_key_down(int key)
     {
-        // Si pulsamos 'F', cambiamos de efecto
+        
         if (key == SDLK_F)
         {
             current_effect++;
-            if (current_effect > 2) current_effect = 0; // Volver al principio
+            if (current_effect > 2) current_effect = 0; 
 
-            // Log para saber qué pasa
+            
             if (current_effect == 0) std::cout << "MODO: Normal" << std::endl;
             if (current_effect == 1) std::cout << "MODO: Sepia" << std::endl;
             if (current_effect == 2) std::cout << "MODO: Vision Nocturna" << std::endl;

@@ -99,6 +99,7 @@
     <ClInclude Include="..\..\..\shared\code\Color_Buffer.hpp" />
     <ClInclude Include="..\..\..\shared\code\Window.hpp" />
     <ClInclude Include="..\..\code\Camera.hpp" />
+    <ClInclude Include="..\..\code\Light.hpp" />
     <ClInclude Include="..\..\code\Mesh.hpp" />
     <ClInclude Include="..\..\code\Node.hpp" />
     <ClInclude Include="..\..\code\Scene.hpp" />

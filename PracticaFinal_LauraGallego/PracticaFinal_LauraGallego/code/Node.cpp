@@ -1,3 +1,6 @@
+// Este código es de dominio público
+// penterrin@gmail.com
+
 #include "Node.hpp"
 #include "Camera.hpp" 
 
@@ -29,11 +32,12 @@ namespace udit
 
     void Node::remove_child(Node* child)
     {
-        // Implementación básica opcional
+        
     }
 
     void Node::update()
     {
+        // Construcción de la matriz local TRS (Translate, Rotate, Scale)
         local_matrix = glm::mat4(1.0f);
         local_matrix = glm::translate(local_matrix, position);
 
@@ -43,6 +47,7 @@ namespace udit
 
         local_matrix = glm::scale(local_matrix, scale);
 
+        // Multiplicación por matriz del padre si existe jerarquía
         if (parent) {
             global_matrix = parent->global_matrix * local_matrix;
         }
@@ -50,6 +55,7 @@ namespace udit
             global_matrix = local_matrix;
         }
 
+        // Propagación de actualización a los nodos hijos
         for (auto child : children) {
             child->update();
         }

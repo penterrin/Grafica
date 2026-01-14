@@ -1,6 +1,5 @@
-
 // Este código es de dominio público
-// angel.rodriguez@udit.es
+// penterrin@gmail.com
 
 #pragma once
 

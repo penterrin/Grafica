@@ -1,15 +1,18 @@
+// Este código es de dominio público
+// penterrin@gmail.com
+
 #include "Terrain.hpp"
-#include "Camera.hpp" // Asegúrate de incluir esto para tener acceso a la clase Camera
+#include "Camera.hpp" 
 #include <iostream>
 #include <SOIL2.h>
 #include <gtc/type_ptr.hpp>
-#include <cmath> // Para exp()
+#include <cmath> 
 
 namespace udit
 {
     Terrain::Terrain(float width, float depth, unsigned x_slices, unsigned z_slices, const std::string& texture_path)
     {
-        // --- 1. GENERACIÓN DE LA MALLA (TRIANGLE STRIP) ---
+        // Generación de malla plana subdividida
         std::vector<float> coordinates;
         std::vector<float> uvs;
 
@@ -17,6 +20,7 @@ namespace udit
         {
             for (unsigned x = 0; x <= x_slices; ++x)
             {
+                // Cálculo de coordenadas UV y posiciones X/Z
                 float u = (float)x / x_slices;
                 float v1 = (float)z / z_slices;
                 float v2 = (float)(z + 1) / z_slices;
@@ -35,19 +39,19 @@ namespace udit
 
         number_of_vertices = coordinates.size() / 2;
 
-        // --- 2. OPENGL BUFFERS ---
+        
         glGenVertexArrays(1, &vao_id);
         glGenBuffers(2, vbo_ids);
 
         glBindVertexArray(vao_id);
 
-        // VBO 0: Posiciones
+        
         glBindBuffer(GL_ARRAY_BUFFER, vbo_ids[0]);
         glBufferData(GL_ARRAY_BUFFER, coordinates.size() * sizeof(float), coordinates.data(), GL_STATIC_DRAW);
         glEnableVertexAttribArray(0);
         glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
 
-        // VBO 1: UVs
+        
         glBindBuffer(GL_ARRAY_BUFFER, vbo_ids[1]);
         glBufferData(GL_ARRAY_BUFFER, uvs.size() * sizeof(float), uvs.data(), GL_STATIC_DRAW);
         glEnableVertexAttribArray(1);
@@ -55,7 +59,7 @@ namespace udit
 
         glBindVertexArray(0);
 
-        // Cargar heightmap y compilar shader
+        
         load_heightmap(texture_path);
         compile_shaders();
     }
@@ -97,9 +101,9 @@ namespace udit
         glUniformMatrix4fv(view_loc, 1, GL_FALSE, glm::value_ptr(camera.get_transform_matrix_inverse()));
         glUniformMatrix4fv(model_loc, 1, GL_FALSE, glm::value_ptr(get_global_matrix()));
 
-        glUniform1f(max_height_loc, 8.0f); // Altura de montañas
+        glUniform1f(max_height_loc, 8.0f); 
 
-        // Niebla gris
+        
         glUniform3f(fog_color_loc, 0.5f, 0.5f, 0.5f);
         glUniform1f(fog_density_loc, 0.04f);
 
@@ -116,7 +120,7 @@ namespace udit
 
     void Terrain::compile_shaders()
     {
-        // VERTEX SHADER (Suavizado de normales)
+        
         const char* vSource = R"(
             #version 330 core
             layout (location = 0) in vec2 aPos;
@@ -152,7 +156,7 @@ namespace udit
             }
         )";
 
-        // FRAGMENT SHADER (Colores procedimentales: Roca -> Nieve)
+        
         const char* fSource = R"(
             #version 330 core
             out vec4 FragColor;
@@ -169,16 +173,17 @@ namespace udit
                 vec3 sunDir = normalize(vec3(0.3, 1.0, 0.5));
                 float diff = max(dot(norm, sunDir), 0.25);
 
-                // --- COLORES MATEMÁTICOS (Sin texturas externas) ---
+                //  colores matematicos (Sin texturas externas) 
+                // Interpolación entre color roca y color nieve según altura (Height)
                 vec3 rockColor = vec3(0.2, 0.2, 0.2); // Gris oscuro
                 vec3 snowColor = vec3(0.9, 0.9, 0.9); // Blanco
 
-                // Mezclamos: Si es bajo -> Roca, Si es alto -> Nieve
+                
                 vec3 objectColor = mix(rockColor, snowColor, Height);
 
                 vec3 litColor = objectColor * diff;
 
-                // Niebla Exponencial
+                // Niebla Exponencial basada en profundidad
                 float fogFactor = 1.0 / exp(pow(gl_FragCoord.z / gl_FragCoord.w * fog_density, 2.0));
                 fogFactor = clamp(fogFactor, 0.0, 1.0);
 

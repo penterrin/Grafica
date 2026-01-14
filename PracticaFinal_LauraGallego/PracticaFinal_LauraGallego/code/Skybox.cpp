@@ -1,6 +1,5 @@
-
-// Este código es de dominio público.
-// angel.rodriguez@esne.edu
+// Este código es de dominio público
+// penterrin@gmail.com angel.rodriguez@esne.edu
 // 2014.03+
 
 #include <cassert>
@@ -91,24 +90,24 @@ namespace udit
     {
         assert(texture_cube.is_ok ());
 
-        // Se compilan y linkan los shaders:
-
+        
+        // Compilación de shaders específicos para el Skybox
         shader_program_id = compile_shaders ();
 
         model_view_matrix_id = glGetUniformLocation (shader_program_id, "model_view_matrix");
         projection_matrix_id = glGetUniformLocation (shader_program_id, "projection_matrix");
 
-        // Se generan índices para los VBOs del cubo:
-
+        
+        // Generación de buffers para el cubo
         glGenBuffers (1, &vbo_id);
         glGenVertexArrays (1, &vao_id);
 
-        // Se activa el VAO del cubo para configurarlo:
+        
 
         glBindVertexArray (vao_id);
 
-        // Se suben a un VBO los datos de coordenadas y se vinculan al VAO:
-
+        
+        // Carga de vértices del cubo envolvente
         glBindBuffer (GL_ARRAY_BUFFER, vbo_id);
         glBufferData (GL_ARRAY_BUFFER, sizeof(coordinates), coordinates, GL_STATIC_DRAW);
 
@@ -120,7 +119,7 @@ namespace udit
 
     Skybox::~Skybox()
     {
-        // Se libera el VBO y el VAO usados:
+        
 
         glDeleteVertexArrays (1, &vao_id);
         glDeleteBuffers      (1, &vbo_id);
@@ -130,7 +129,10 @@ namespace udit
     {
         glUseProgram (shader_program_id);
 
+        // Vinculación de la textura cúbica (CubeMap)
         texture_cube.bind ();
+
+        // Obtención de la matriz de vista sin traslación (para que el cielo no se mueva al andar)
         glm::mat4 view = camera.get_transform_matrix_inverse();
 
         view[3] = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -143,12 +145,14 @@ namespace udit
         glUniformMatrix4fv(model_view_matrix_id, 1, GL_FALSE, glm::value_ptr(model_view_matrix));
         glUniformMatrix4fv(projection_matrix_id, 1, GL_FALSE, glm::value_ptr(projection_matrix));
 
-        
+        // Desactivación de escritura en Z-Buffer
+        // El skybox debe dibujarse siempre "detrás" de todo, sin bloquear otros objetos
         glDepthMask(GL_FALSE);
 
         glBindVertexArray(vao_id);
         glDrawArrays(GL_TRIANGLES, 0, 36);
-
+        
+        // Restauración de escritura en profundidad
         glDepthMask(GL_TRUE);
 
         glBindVertexArray(0);
@@ -159,12 +163,12 @@ namespace udit
     {
         GLint succeeded = GL_FALSE;
 
-        // Se crean objetos para los shaders:
+        
 
         GLuint   vertex_shader_id = glCreateShader (GL_VERTEX_SHADER  );
         GLuint fragment_shader_id = glCreateShader (GL_FRAGMENT_SHADER);
 
-        // Se carga el código de los shaders:
+        
 
         const char *   vertex_shaders_code[] = {          vertex_shader_code.c_str () };
         const char * fragment_shaders_code[] = {        fragment_shader_code.c_str () };
@@ -174,12 +178,12 @@ namespace udit
         glShaderSource  (  vertex_shader_id, 1,   vertex_shaders_code,   vertex_shaders_size);
         glShaderSource  (fragment_shader_id, 1, fragment_shaders_code, fragment_shaders_size);
 
-        // Se compilan los shaders:
+        
 
         glCompileShader (  vertex_shader_id);
         glCompileShader (fragment_shader_id);
 
-        // Se comprueba que si la compilación ha tenido éxito:
+        
 
         glGetShaderiv   (  vertex_shader_id, GL_COMPILE_STATUS, &succeeded);
         if (!succeeded) show_compilation_error (  vertex_shader_id);
@@ -187,25 +191,25 @@ namespace udit
         glGetShaderiv   (fragment_shader_id, GL_COMPILE_STATUS, &succeeded);
         if (!succeeded) show_compilation_error (fragment_shader_id);
 
-        // Se crea un objeto para un programa:
+       
 
         GLuint program_id = glCreateProgram ();
 
-        // Se cargan los shaders compilados en el programa:
+        
 
         glAttachShader  (program_id,   vertex_shader_id);
         glAttachShader  (program_id, fragment_shader_id);
 
-        // Se linkan los shaders:
+        
 
         glLinkProgram   (program_id);
 
-        // Se comprueba si el linkage ha tenido éxito:
+        
 
         glGetProgramiv  (program_id, GL_LINK_STATUS, &succeeded);
         if (!succeeded) show_linkage_error (program_id);
 
-        // Se liberan los shaders compilados una vez se han linkado:
+        
 
         glDeleteShader (  vertex_shader_id);
         glDeleteShader (fragment_shader_id);
