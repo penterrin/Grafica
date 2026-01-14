@@ -4,46 +4,29 @@
 #include "Scene.hpp"
 #include <iostream>
 #include <vector>
+#include <fstream>
+#include <sstream>
+#include <string>
 
 namespace udit
 {
     Scene::Scene(int width, int height)
         : camera(0.1f, 1000.f, float(width) / height),
         skybox("assets/skybox/sky-cube-map-"),
-        terrain(nullptr), cat_opaque(nullptr), cat_ghost(nullptr),
+        terrain(nullptr),main_light(nullptr),
         width(width), height(height),
         angle_delta_x(0), angle_delta_y(0), pointer_pressed(false), current_effect(0)
     {
         
         glEnable(GL_DEPTH_TEST);
 
+        root = new Node();
         
-        // Carga del terreno utilizando el mapa de alturas
-        terrain = new Terrain(50.0f, 50.0f, 256, 256, "assets/height-map.png");
-        terrain->set_position({ 0.0f, -2.0f, 0.0f });
+        load_scene_from_file("assets/scene.txt");
 
-        // Inicialización de la luz principal de la escena
-        main_light = new Light();
-        main_light->set_position({ 10.0f, 50.0f, 10.0f }); // Arriba y a un lado
-        main_light->set_color({ 1.0f, 0.9f, 0.8f });
-
-        // Gato 1: Configuración del modelo opaco
-        cat_opaque = new Mesh("assets/cat.obj");
-        cat_opaque->set_position({ -2.0f, 8.0f, 0.0f }); 
-        cat_opaque->set_opacity(1.0f);
-        cat_opaque->set_light(main_light);
-
-        // Gato 2: Configuración del modelo transparente (Fantasma)
-        cat_ghost = new Mesh("assets/cat.obj");
-        cat_ghost->set_position({ 2.0f, 8.0f, 0.0f }); 
-        cat_ghost->set_opacity(0.4f);
-        cat_ghost->set_light(main_light);
-
-        // configuración cámara
+        // Configuración por defecto de la cámara (si no estaba en el archivo)
         camera.set_location(0.0f, 10.0f, 15.0f);
         camera.set_target(0.0f, 0.0f, 0.0f);
-
-
 
         // Preparación del Framebuffer para efectos de post-proceso 
         init_screen_quad();
@@ -53,8 +36,10 @@ namespace udit
 
     Scene::~Scene()
     {
-        if (cat_opaque) delete cat_opaque;
-        if (cat_ghost)  delete cat_ghost;
+        for (Mesh* m : meshes) {
+            delete m;
+        }
+        meshes.clear();
        
         if (terrain) delete terrain;
 
@@ -95,7 +80,7 @@ namespace udit
             glm::vec3 rot = cat_opaque->get_rotation();
             rot.y += 50.0f * delta_time; 
             cat_opaque->set_rotation(rot);
-            cat_opaque->update(); // Recálculo de matriz local
+           
         }
 
         // Animación: Levitación y giro del gato fantasma
@@ -106,55 +91,61 @@ namespace udit
             float time = SDL_GetTicks() / 1000.0f;
             float height = 8.0f + sin(time * 2.0f) * 0.5f; // Oscilación vertical (Seno)
             cat_ghost->set_position({ 2.0f, height, 0.0f });
-            cat_ghost->update(); 
+            
         }
 
+        if (root) root->update();
         
-        if (terrain) terrain->update();
     }
 
     void Scene::render()
     {
-        //Renderizado de la escena en el Framebuffer (Textura interna)
+        // PASO 1: Renderizado de la escena en el Framebuffer
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_id);
         glEnable(GL_DEPTH_TEST);
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // Dibujado de objetos sólidos
+        // Dibujado de objetos básicos
         skybox.render(camera);
         if (terrain) terrain->render(camera);
-      
-        if (cat_opaque) cat_opaque->render(camera);
 
-        // Dibujado de objetos transparentes (Blending)
+        // --- DIBUJAR TODOS LOS GATOS OPACOS ---
+        // Recorremos la lista y solo dibujamos los que NO son transparentes
+        for (Mesh* m : meshes) {
+            // Si el gato es opaco (casi 1.0), lo dibujamos ahora
+            // Usamos 0.9f como margen de seguridad
+            if (m->get_opacity() >= 0.9f) {
+                m->render(camera);
+            }
+        }
+
+        // PASO 2: Dibujado de objetos transparentes (Blending)
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDepthMask(GL_FALSE); // Desactivamos escritura en Z-Buffer para el blending [cite: 105]
 
-        // Desactivación de escritura en Z - Buffer para correcta visualización traslúcida
-        glDepthMask(GL_FALSE);
-
-        if (cat_ghost) cat_ghost->render(camera);
+        // --- DIBUJAR TODOS LOS GATOS TRANSPARENTES ---
+        // Volvemos a recorrer la lista pero ahora solo dibujamos los "fantasmas"
+        for (Mesh* m : meshes) {
+            if (m->get_opacity() < 0.9f) {
+                m->render(camera);
+            }
+        }
 
         // Restauración del estado normal de OpenGL
         glDepthMask(GL_TRUE);
         glDisable(GL_BLEND);
 
-        // Post-Proceso (Renderizado del Framebuffer en pantalla)
-        glBindFramebuffer(GL_FRAMEBUFFER, 0); // Retorno al buffer de pantalla
-        glDisable(GL_DEPTH_TEST); 
+        // PASO 3: Post-Proceso (Renderizado del Framebuffer en pantalla)
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glDisable(GL_DEPTH_TEST);
         glClear(GL_COLOR_BUFFER_BIT);
 
         glUseProgram(screen_shader_id);
-
-        // Envío del modo de efecto actual al shader
         glUniform1i(glGetUniformLocation(screen_shader_id, "mode"), current_effect);
-
         glBindVertexArray(screen_quad_vao);
-
-       
         glBindTexture(GL_TEXTURE_2D, texture_colorbuffer_id);
-
         glDrawArrays(GL_TRIANGLES, 0, 6);
     }
 
@@ -279,6 +270,75 @@ namespace udit
         }
     }
 
-    void Scene::on_drag(float x, float y) { if (pointer_pressed) { angle_delta_x = (last_pointer_x - x) * 0.1f; angle_delta_y = (last_pointer_y - y) * 0.1f; last_pointer_x = x; last_pointer_y = y; } }
-    void Scene::on_click(float x, float y, bool d) { pointer_pressed = d; if (d) { last_pointer_x = x; last_pointer_y = y; } }
+    void Scene::load_scene_from_file(const std::string& file_path) {
+        std::ifstream file(file_path);
+
+        if (!file.is_open()) {
+            std::cerr << "ERROR: No se pudo abrir el archivo de escena: " << file_path << std::endl;
+            return;
+        }
+
+        std::string line;
+        while (std::getline(file, line)) {
+            if (line.empty() || line[0] == '#') continue; // Saltar vacíos y comentarios
+
+            std::stringstream ss(line);
+            std::string type;
+            ss >> type;
+
+            if (type == "TERRAIN") {
+                float w, d;
+                int xs, zs;
+                std::string path;
+                ss >> w >> d >> xs >> zs >> path;
+
+                // Creamos el terreno con los datos leídos
+                terrain = new Terrain(w, d, xs, zs, path);
+                terrain->set_position({ 0.0f, -2.0f, 0.0f });
+                root->add_child(terrain);// Podrías leer la posición también si quieres
+            }
+            else if (type == "LIGHT") {
+                float x, y, z, r, g, b;
+                ss >> x >> y >> z >> r >> g >> b;
+
+                main_light = new Light();
+                main_light->set_position({ x, y, z });
+                main_light->set_color({ r, g, b });
+                root->add_child(main_light);
+            }
+            else if (type == "MESH") {
+                std::string path;
+                float x, y, z, opacity;
+                ss >> path >> x >> y >> z >> opacity;
+
+                Mesh* new_mesh = new Mesh(path);
+                new_mesh->set_position({ x, y, z });
+                new_mesh->set_opacity(opacity);
+
+                if (main_light) new_mesh->set_light(main_light);
+
+                // IMPORTANTE: Siempre lo guardamos en la lista
+                meshes.push_back(new_mesh);
+                root->add_child(new_mesh);
+
+                // Solo asignamos a las variables de animación si están vacías
+                // Así el primer gato del TXT será el que se mueva
+                if (opacity >= 0.9f && cat_opaque == nullptr) cat_opaque = new_mesh;
+                else if (opacity < 0.9f && cat_ghost == nullptr) cat_ghost = new_mesh;
+            }
+        }
+    }
+
+        void Scene::on_drag(float x, float y) {
+            if (pointer_pressed) {
+                angle_delta_x = (last_pointer_x - x) * 0.1f;
+                angle_delta_y = (last_pointer_y - y) * 0.1f;
+                last_pointer_x = x;
+                last_pointer_y = y;
+            }
+        }
+        void Scene::on_click(float x, float y, bool d) {
+            pointer_pressed = d;
+            if (d) { last_pointer_x = x; last_pointer_y = y; }
+        }
 }

@@ -10,6 +10,8 @@
     #include "Terrain.hpp"
     #include "Light.hpp"
     #include <SDL3/SDL.h>
+    #include <string>
+    #include <vector>
 
     namespace udit
     {
@@ -25,7 +27,11 @@
             Mesh* cat_ghost;
             Terrain* terrain;
 
+            Node* root;
+
             Light* main_light;
+
+            std::vector<Mesh*> meshes;
 
             int    width;
             int    height;
@@ -52,6 +58,9 @@
             void init_framebuffer();
             void init_screen_quad();
             void compile_screen_shader();
+
+            void load_scene_from_file(const std::string& file_path);
+
 
         public:
 

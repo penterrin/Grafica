@@ -1,0 +1,17 @@
+# Formato: TIPO ruta_o_params x y z ...
+# TERRAIN: ancho prof x_slices z_slices ruta_heightmap
+TERRAIN 50.0 50.0 256 256 assets/height-map.png
+
+# LIGHT: pos_x pos_y pos_z r g b
+LIGHT 10.0 50.0 10.0 1.0 0.9 0.8
+
+# MESH: ruta pos_x pos_y pos_z opacidad
+MESH assets/cat.obj -2.0 8.0 0.0 1.0
+MESH assets/cat.obj  2.0 8.0 0.0 0.4
+MESH assets/cat.obj  4.0 8.0 0.0 0.4
+
+
+
+
+
+

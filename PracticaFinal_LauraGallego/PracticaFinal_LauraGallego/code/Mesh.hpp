@@ -52,6 +52,9 @@ namespace udit
         
         Mesh(const std::string& path);
         ~Mesh();
+
+        float get_opacity() const { return opacity; }
+
         void set_opacity(float val) { opacity = val; }
        
         virtual void render(const Camera& camera) override;
